@@ -165,6 +165,7 @@ void Serial::parse(const QByteArray readData)
 
         QStringList hexFileLines = m_hexFile.getHexFile();
         quint32 lineNr = 0;
+        qDebug()<<"lines in hex: "<<hexFileLines.count();
         foreach(QString line, hexFileLines)
         {
             ++lineNr;
@@ -173,6 +174,7 @@ void Serial::parse(const QByteArray readData)
                 qDebug() << "Error: Failed to download line " << lineNr;
                 break;
             }
+            //emit uploadedProgress(qRound(double(lineNr/hexFileLines.count()*100)));
         }
         m_currentCommand = Commands::Idle;
         break;
@@ -195,8 +197,11 @@ void Serial::parse(const QByteArray readData)
             break;
         }
         // ...and with '*' on page write
+        //uploadedProgress(qRound(double(readData.count('*')*128*2/30120*100)));
         if (readData.contains('*'))
+        {
             qDebug() << "+";
+        }
         m_currentCommand = Commands::Idle;
         break;
     }

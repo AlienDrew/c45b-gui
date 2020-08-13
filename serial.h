@@ -5,7 +5,7 @@
 #include <QSerialPort>
 
 #include "commands.h"
-#include "hexfile.h"
+#include "common/hexfile.h"
 
 class QTimer;
 
@@ -28,6 +28,7 @@ public:
 signals:
     void do_parse(const QByteArray readData, QPrivateSignal);
     void connected(bool, const QString &msg="");
+    void uploadedProgress(quint8 progress);
 
 private:
     void handleBytesWritten(qint64 bytes);

@@ -4,8 +4,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 
-#include "hexfile.h"
-#include "hexutils.h"
+#include "common/hexfile.h"
 #include "serial.h"
 
 #include "mainwindow.h"
@@ -120,6 +119,7 @@ void MainWindow::on_connected(bool is_connected, const QString &msg)
         ui->timeoutBox->setEnabled(false);
         ui->programButton->setEnabled(true);
         ui->programEepromButton->setEnabled(true);
+        ui->progressBar->setEnabled(true);
         consoleOutput(tr("Connected to ")+m_port->portName());
         consoleOutput(msg);
     }
@@ -133,6 +133,8 @@ void MainWindow::on_connected(bool is_connected, const QString &msg)
         ui->baudRateBox->setEnabled(true);
         ui->programButton->setEnabled(false);
         ui->programEepromButton->setEnabled(false);
+        ui->progressBar->setEnabled(false);
+        ui->progressBar->setValue(0);
         if (msg.isEmpty())
             consoleOutput(tr("Unable to connect to ")+m_port->portName(), MsgType::Alert);
         consoleOutput(msg, MsgType::Alert);
@@ -199,6 +201,9 @@ MainWindow::MainWindow(QWidget *parent)
         HexFile hexfile;
         hexfile.load(ui->eepromFilePath->text(), true);
         m_port->program(hexfile, false);
+    });
+    connect(m_port, &Serial::uploadedProgress, [=](quint8 val){
+        ui->progressBar->setValue(val);
     });
     initBaudRates();
 }

@@ -1,4 +1,4 @@
-// Copyright 2012 Torsten Martinsen <bullestock@bullestock.net>
+// Copyright 2011 Torsten Martinsen <bullestock@bullestock.net>
 
 // This file is part of c45b.
 
@@ -15,11 +15,36 @@
 // You should have received a copy of the GNU General Public License
 // along with c45b.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <QString>
+#ifndef HEXFILE_H
+#define HEXFILE_H
 
-class HexFileTester
+#include <QByteArray>
+#include <QString>
+#include <QStringList>
+
+class HexFile : QByteArray // TODO: Use composition ISO private inheritance
 {
 public:
-    HexFileTester(){}
-    void test(const QString& filename);
+    HexFile();
+
+    ~HexFile();
+
+    void reset();
+
+    QStringList getHexFile() const;
+    bool load(QString fileName, bool verbose);
+
+    QString errorString() const {return m_lastError;}
+
+    bool setByte(quint32 address, quint8 data);
+    bool append(quint8 data);
+
+    using QByteArray::size;
+
+    bool equal(const HexFile& other);
+
+private:
+   QString m_lastError;
 };
+
+#endif
