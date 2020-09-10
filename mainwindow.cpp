@@ -3,6 +3,7 @@
 #include <QSerialPortInfo>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QCloseEvent>
 
 #include "common/hexfile.h"
 #include "serial.h"
@@ -135,6 +136,7 @@ void MainWindow::on_connected(bool is_connected, const QString &msg)
         ui->programEepromButton->setEnabled(false);
         ui->progressBar->setEnabled(false);
         ui->progressBar->setValue(0);
+
         if (msg.isEmpty())
             consoleOutput(tr("Unable to connect to ")+m_port->portName(), MsgType::Alert);
         consoleOutput(msg, MsgType::Alert);
@@ -162,6 +164,18 @@ MainWindow::MainWindow(QWidget *parent)
         ui->console->setVisible(toggled);
         ui->consoleLabel->setVisible(toggled);
         ui->consoleClearButton->setVisible(toggled);
+
+        static quint16 height = this->height();
+        if (!toggled)
+        {
+            height = this->height();
+            this->setFixedHeight(this->height()-ui->console->height());
+        }
+        else
+        {
+            this->setFixedHeight(height);
+            height = this->height();
+        }
     });
     connect(ui->consoleClearButton, &QPushButton::clicked, [=](){
         ui->console->clear();
@@ -188,8 +202,18 @@ MainWindow::MainWindow(QWidget *parent)
             QMessageBox::warning(this, "Error", tr("Flash hex file is not specified"));
             return;
         }
+        ui->hexFilePath->setEnabled(false);
+        ui->eepromFilePath->setEnabled(false);
+        ui->selectHexButton->setEnabled(false);
+        ui->selectEepromButton->setEnabled(false);
+
+        ui->programButton->setEnabled(false);
+        ui->programEepromButton->setEnabled(false);
+        ui->connectButton->setEnabled(false);
+
         HexFile hexfile;
         hexfile.load(ui->hexFilePath->text(), true);
+        consoleOutput("Uploading firmware to the chip...");
         m_port->program(hexfile, true);
     });
     connect(ui->programEepromButton, &QPushButton::clicked, [=](){
@@ -198,12 +222,36 @@ MainWindow::MainWindow(QWidget *parent)
             QMessageBox::warning(this, "Error", tr("EEPROM file is not specified"));
             return;
         }
+        ui->hexFilePath->setEnabled(false);
+        ui->eepromFilePath->setEnabled(false);
+        ui->selectHexButton->setEnabled(false);
+        ui->selectEepromButton->setEnabled(false);
+
+        ui->programButton->setEnabled(false);
+        ui->programEepromButton->setEnabled(false);
+        ui->connectButton->setEnabled(false);
+
         HexFile hexfile;
         hexfile.load(ui->eepromFilePath->text(), true);
         m_port->program(hexfile, false);
     });
-    connect(m_port, &Serial::uploadedProgress, [=](quint8 val){
+    connect(m_port, &Serial::uploadedProgress, [=](int val){
         ui->progressBar->setValue(val);
+    });
+    connect(m_port, &Serial::firmwareUploaded, [=](bool val){
+        ui->hexFilePath->setEnabled(true);
+        ui->eepromFilePath->setEnabled(true);
+        ui->selectHexButton->setEnabled(true);
+        ui->selectEepromButton->setEnabled(true);
+
+        ui->programButton->setEnabled(true);
+        ui->programEepromButton->setEnabled(true);
+        ui->connectButton->setEnabled(true);
+
+        if (val)
+            consoleOutput("Firmware upload finished!");
+        else
+            consoleOutput("Some error occured during firmware upload :(", MsgType::Alert);
     });
     initBaudRates();
 }
@@ -211,5 +259,16 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_port->isOpen())
+    {
+        consoleOutput("Please disconnect from the device first!", MsgType::Alert);
+        event->ignore();
+    }
+    else
+        event->accept();
 }
 

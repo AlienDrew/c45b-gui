@@ -19,6 +19,8 @@ public:
     void disconnectFromBootloader();
     QString portName() const;
     bool isOpen() const;
+    void clear() const;
+    void close() const;
 
     void program(const HexFile &hexFile, bool doFlash);
 
@@ -28,7 +30,8 @@ public:
 signals:
     void do_parse(const QByteArray readData, QPrivateSignal);
     void connected(bool, const QString &msg="");
-    void uploadedProgress(quint8 progress);
+    void uploadedProgress(int progress);
+    void firmwareUploaded(bool);
 
 private:
     void handleBytesWritten(qint64 bytes);

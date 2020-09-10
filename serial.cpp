@@ -5,6 +5,7 @@
 #include <QChar>
 #include <QDebug>
 #include <QThread>
+#include <QtMath>
 
 Serial::Serial(QObject *parent) : QObject(parent)
 {
@@ -60,6 +61,17 @@ bool Serial::isOpen() const
     return m_port->isOpen();
 }
 
+void Serial::clear() const
+{
+    m_port->clear();
+    //m_port->flush();
+}
+
+void Serial::close() const
+{
+    m_port->close();
+}
+
 void Serial::program(const HexFile& hexFile, bool doFlash)
 {
     QString cmd(doFlash ? "pf\n" : "pe\n");
@@ -88,12 +100,19 @@ void Serial::handleReadyRead()
     if (m_port->bytesAvailable()<30)
     {
         m_readData.append(m_port->readAll());
-        qDebug()<<m_readData;
+        //qDebug()<<m_readData;
         if (m_readData.contains('\r') or m_readData.contains(Serial::XON))
         {
             m_readData.chop(1);
             m_port->clear();
             m_port->flush();
+            emit do_parse(m_readData, QPrivateSignal());
+            m_readData.clear();
+        }
+        else if (m_currentCommand == Commands::DownloadLine)
+        {
+            //m_port->clear();
+            //m_port->flush();
             emit do_parse(m_readData, QPrivateSignal());
             m_readData.clear();
         }
@@ -110,6 +129,17 @@ void Serial::handleError(QSerialPort::SerialPortError serialPortError)
     {
         qDebug()<<"An I/O error occurred while writing the data to port"<<m_port->portName()<<", error:"<<m_port->errorString();
         //consoleOutput("PC: An I/O error occurred while writing the data to port: "+m_serialPort->errorString(), MsgType::alert);
+    }
+    else if (serialPortError == QSerialPort::ResourceError)
+    {
+        if (m_port->isOpen())
+        {
+            m_connected = false;
+            m_activeBootloader = false;
+            m_currentCommand = Commands::Idle;
+            m_port->close();
+        }
+        connected(false, "The device "+m_port->portName()+" has been removed from the system");
     }
 }
 
@@ -176,14 +206,19 @@ void Serial::parse(const QByteArray readData)
             }
             //emit uploadedProgress(qRound(double(lineNr/hexFileLines.count()*100)));
         }
-        m_currentCommand = Commands::Idle;
+        m_currentCommand = Commands::DownloadLine;//Commands::Idle;
         break;
     }
     case Commands::DownloadLine:
     {
+        static int count = 0;
         if( readData.contains('-') )
         {
             qDebug() << "Something went wrong during programming";
+            count = 0;
+            m_port->clear();
+            m_port->flush();
+            emit firmwareUploaded(false);
             m_currentCommand = Commands::Idle;
             break;
         }
@@ -193,6 +228,10 @@ void Serial::parse(const QByteArray readData)
                 qDebug() << "Timeout";
             else
                 qDebug() << "Reply: " << readData;
+            count = 0;
+            m_port->clear();
+            m_port->flush();
+            emit firmwareUploaded(false);
             m_currentCommand = Commands::Idle;
             break;
         }
@@ -200,9 +239,19 @@ void Serial::parse(const QByteArray readData)
         //uploadedProgress(qRound(double(readData.count('*')*128*2/30120*100)));
         if (readData.contains('*'))
         {
-            qDebug() << "+";
+            count++;
+            double size = qCeil(m_hexFile.size()/128.0);
+            uploadedProgress(qRound(count/size*100));
+            qDebug() << qRound(count/size*100) << "+";
         }
-        m_currentCommand = Commands::Idle;
+        if (readData.contains('\r'))
+        {
+            count = 0;
+            m_port->clear();
+            m_port->flush();
+            emit firmwareUploaded(true);
+            m_currentCommand = Commands::Idle;
+        }
         break;
     }
     case Commands::Disconnect:
