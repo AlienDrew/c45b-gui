@@ -35,6 +35,7 @@ private:
     void on_baudRateCustom(const QString &baudRate);
     void on_connect();
     void on_connected(bool, const QString &msg);
+    void on_program_click();
 
     QTimer* m_port_timer;
     Serial* m_port;

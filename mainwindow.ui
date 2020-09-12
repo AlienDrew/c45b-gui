@@ -179,6 +179,26 @@
         </property>
        </widget>
       </item>
+      <item row="11" column="1">
+       <widget class="QPushButton" name="eraseFlashButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Erase Flash</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="2">
+       <widget class="QPushButton" name="eraseEepromButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Erase Eeprom</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
    </layout>

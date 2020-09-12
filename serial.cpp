@@ -10,7 +10,10 @@
 Serial::Serial(QObject *parent) : QObject(parent)
 {
     m_connectTimer = new QTimer(this);
+    m_uploadTimer = new QTimer(this);
+    m_uploadTimer->setSingleShot(true);
     connect(m_connectTimer, &QTimer::timeout, this, &Serial::on_tryConnectTimeout);
+    connect(m_uploadTimer, &QTimer::timeout, this, &Serial::on_uploadTimeout);
     m_port = new QSerialPort(this);
     connect(m_port, &QSerialPort::readyRead, this, &Serial::handleReadyRead);
     connect(m_port, &QSerialPort::bytesWritten, this, &Serial::handleBytesWritten);
@@ -75,6 +78,7 @@ void Serial::close() const
 void Serial::program(const HexFile& hexFile, bool doFlash)
 {
     QString cmd(doFlash ? "pf\n" : "pe\n");
+    m_doFlash = doFlash;
     prepareCommandAndWrite(Commands::Program, cmd.toUtf8(), hexFile);
     // Wait for "pf+\r"
 }
@@ -139,6 +143,7 @@ void Serial::handleError(QSerialPort::SerialPortError serialPortError)
             m_currentCommand = Commands::Idle;
             m_port->close();
         }
+        m_count = 0;
         connected(false, "The device "+m_port->portName()+" has been removed from the system");
     }
 }
@@ -211,24 +216,34 @@ void Serial::parse(const QByteArray readData)
     }
     case Commands::DownloadLine:
     {
-        static int count = 0;
         if( readData.contains('-') )
         {
+            m_uploadTimer->stop();
             qDebug() << "Something went wrong during programming";
-            count = 0;
+            m_count = 0;
             m_port->clear();
             m_port->flush();
-            emit firmwareUploaded(false);
+            emit firmwareUploaded(false, "Something went wrong during programming :(");
             m_currentCommand = Commands::Idle;
             break;
         }
         if (!readData.contains('.') && !readData.contains('*'))
         {
+            m_uploadTimer->stop();
             if (readData.isEmpty())
                 qDebug() << "Timeout";
+            else if (readData.contains('\r'))
+            {
+                m_count = 0;
+                m_port->clear();
+                m_port->flush();
+                emit firmwareUploaded(true);
+                m_currentCommand = Commands::Idle;
+                break;
+            }
             else
                 qDebug() << "Reply: " << readData;
-            count = 0;
+            m_count = 0;
             m_port->clear();
             m_port->flush();
             emit firmwareUploaded(false);
@@ -239,14 +254,17 @@ void Serial::parse(const QByteArray readData)
         //uploadedProgress(qRound(double(readData.count('*')*128*2/30120*100)));
         if (readData.contains('*'))
         {
-            count++;
-            double size = qCeil(m_hexFile.size()/128.0);
-            uploadedProgress(qRound(count/size*100));
-            qDebug() << qRound(count/size*100) << "+";
+            m_uploadTimer->start(1000);
+            m_count++;
+            double size = qCeil(m_hexFile.size()/(m_doFlash ? 128.0 : 16.0));
+            uploadedProgress(qRound(m_count/size*100));
+            //qDebug() << "hex file size" << m_hexFile.size();
+            qDebug() << m_count << "out of" << size<< ":" << qRound(m_count/size*100) << "%";
         }
         if (readData.contains('\r'))
         {
-            count = 0;
+            m_uploadTimer->stop();
+            m_count = 0;
             m_port->clear();
             m_port->flush();
             emit firmwareUploaded(true);
@@ -320,4 +338,13 @@ void Serial::on_tryConnectTimeout()
         m_connectTimer->stop();
         //emit connected(true);
     }
+}
+
+void Serial::on_uploadTimeout()
+{
+    m_count = 0;
+    m_port->clear();
+    m_port->flush();
+    emit firmwareUploaded(false, "Upload timeout: probably you have less flash/eeprom size available than you specified...");
+    m_currentCommand = Commands::Idle;
 }

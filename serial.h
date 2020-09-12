@@ -31,7 +31,11 @@ signals:
     void do_parse(const QByteArray readData, QPrivateSignal);
     void connected(bool, const QString &msg="");
     void uploadedProgress(int progress);
-    void firmwareUploaded(bool);
+    void firmwareUploaded(bool, const QString &msg="");
+
+private slots:
+    void on_tryConnectTimeout();
+    void on_uploadTimeout();
 
 private:
     void handleBytesWritten(qint64 bytes);
@@ -41,16 +45,17 @@ private:
     //bool downloadLine(QString s);
     bool prepareCommandAndWrite(const Commands command, const QString values, HexFile hexFile = HexFile());
 
-    void on_tryConnectTimeout();
-
     QSerialPort* m_port;
     bool m_connected = false;
     bool m_activeBootloader = false;
     int m_connectionTimeout = 2000;
     QTimer* m_connectTimer;
+    QTimer* m_uploadTimer;
     QByteArray m_readData;
     QByteArray m_writeData;
 
+    int m_count = 0;
+    bool m_doFlash;
     QString m_cmd;
     HexFile m_hexFile;
     Commands m_currentCommand = Commands::Idle;
